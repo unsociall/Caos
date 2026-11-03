@@ -51,9 +51,7 @@ class MemoryStore:
         line = json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
         # Exclusive creation avoids silently replacing existing data.
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        fd = os.open(self.path, os.O_RDWR | os.O_APPEND | os.O_CREAT, 0o600)
-        try:
-            with _exclusive_lock(fd):
+        # Stable sidecar inode coordinates cooperating writers even when the\n        # JSONL path is replaced. Never remove the sidecar during normal use.\n        lock_path = self.path.with_name(self.path.name + ".lock")\n        lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)\n        try:\n            with _exclusive_lock(lock_fd):\n                self._append_under_sidecar(line)\n        finally:\n            os.close(lock_fd)\n\n    def _append_under_sidecar(self, line: str) -> None:\n        fd = os.open(self.path, os.O_RDWR | os.O_APPEND | os.O_CREAT, 0o600)\n        try:\n            with _exclusive_lock(fd):
                 # Refuse writes to an inode detached from the configured path.
                 # This closes the common open-then-rename window, but cannot
                 # prevent a non-cooperating rename after this comparison.
