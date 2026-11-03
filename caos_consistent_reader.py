@@ -58,7 +58,11 @@ def read_consistent(store: MemoryStore, *, keys: Mapping[str, bytes] | None = No
                 if not line.endswith(b"\n"):
                     raise MemoryIntegrityError(f"unterminated record at line {number}")
                 try:
-                    record = json.loads(line.decode("utf-8"))
+                    decoded = line.decode("utf-8")
+                except UnicodeDecodeError as exc:
+                    raise MemoryIntegrityError(f"invalid UTF-8 at line {number}") from exc
+                try:
+                    record = json.loads(decoded)
                     if not isinstance(record, dict) or not verify(record) or not verify_authenticated(record, keys=ring):
                         raise ValueError("integrity verification failed")
                 except (ValueError, TypeError, UnicodeError) as exc:
