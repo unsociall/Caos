@@ -29,6 +29,18 @@ class ConsistentReaderTests(unittest.TestCase):
         with self.assertRaises(MemoryIntegrityError):
             read_consistent(self.store)
 
+    def test_store_read_all_delegates_to_locked_reader(self):
+        self.store.append("one", "first")
+        self.assertEqual(self.store.read_all(), read_consistent(self.store))
+        self.assertEqual(self.store.read_all()[0]["id"], "one")
+
+    def test_store_read_all_rejects_corrupt_tail(self):
+        self.store.append("one", "valid")
+        with self.path.open("ab") as stream:
+            stream.write(b'{"partial":')
+        with self.assertRaises(MemoryIntegrityError):
+            self.store.read_all()
+
     def test_concurrent_readers_and_writer(self):
         def write(i):
             self.store.append(str(i), "value")
