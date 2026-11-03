@@ -3,11 +3,32 @@ from __future__ import annotations
 
 import json
 import os
+import contextlib
 from pathlib import Path
 from typing import Mapping
 
 from caos_integrity import seal, verify
 from caos_authenticated_integrity import authenticate, verify_authenticated
+
+@contextlib.contextmanager
+def _exclusive_lock(fd: int):
+    """Advisory lock; all writers must cooperate."""
+    if os.name == "nt":
+        import msvcrt
+        os.lseek(fd, 0, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+        try:
+            yield
+        finally:
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+    else:
+        import fcntl
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fd, fcntl.LOCK_UN)
 
 
 class MemoryIntegrityError(Exception):
@@ -32,20 +53,22 @@ class MemoryStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         fd = os.open(self.path, os.O_RDWR | os.O_APPEND | os.O_CREAT, 0o600)
         try:
-            # Refuse to append behind an interrupted record. A complete
-            # append must end with LF; never silently merge two JSON objects.
-            size = os.fstat(fd).st_size
-            if size:
-                os.lseek(fd, -1, os.SEEK_END)
-                if os.read(fd, 1) != b"\n":
-                    raise MemoryIntegrityError("unterminated tail: append refused")
-            data = line.encode("utf-8")
-            # Single write; short writes are treated as failure, not retried.
-            if os.write(fd, data) != len(data):
-                raise OSError("short append: inspect last record before retrying")
-            os.fsync(fd)
+            with _exclusive_lock(fd):
+                self._append_locked(fd, line)
         finally:
             os.close(fd)
+
+    @staticmethod
+    def _append_locked(fd: int, line: str) -> None:
+        size = os.fstat(fd).st_size
+        if size:
+            os.lseek(fd, -1, os.SEEK_END)
+            if os.read(fd, 1) != b"\\n":
+                raise MemoryIntegrityError("unterminated tail: append refused")
+        data = line.encode("utf-8")
+        if os.write(fd, data) != len(data):
+            raise OSError("short append: inspect last record before retrying")
+        os.fsync(fd)
 
     def read_all(self, *, keys: Mapping[str, bytes] | None = None) -> list[dict]:
         if not self.path.exists():
