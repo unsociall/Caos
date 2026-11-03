@@ -48,10 +48,24 @@ class MemoryStore:
         record = authenticate(seal({"id": identifier, "content": content,
                                     "schema_version": 1}),
                               secret=self.secret, key_id=self.key_id)
-        line = json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
+        line = json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "
+"
         # Exclusive creation avoids silently replacing existing data.
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        # Stable sidecar inode coordinates cooperating writers even when the\n        # JSONL path is replaced. Never remove the sidecar during normal use.\n        lock_path = self.path.with_name(self.path.name + ".lock")\n        lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)\n        try:\n            with _exclusive_lock(lock_fd):\n                self._append_under_sidecar(line)\n        finally:\n            os.close(lock_fd)\n\n    def _append_under_sidecar(self, line: str) -> None:\n        fd = os.open(self.path, os.O_RDWR | os.O_APPEND | os.O_CREAT, 0o600)\n        try:\n            with _exclusive_lock(fd):
+        # Stable sidecar inode coordinates cooperating writers even when the
+        # JSONL path is replaced. Never remove the sidecar during normal use.
+        lock_path = self.path.with_name(self.path.name + ".lock")
+        lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+        try:
+            with _exclusive_lock(lock_fd):
+                self._append_under_sidecar(line)
+        finally:
+            os.close(lock_fd)
+
+    def _append_under_sidecar(self, line: str) -> None:
+        fd = os.open(self.path, os.O_RDWR | os.O_APPEND | os.O_CREAT, 0o600)
+        try:
+            with _exclusive_lock(fd):
                 # Refuse writes to an inode detached from the configured path.
                 # This closes the common open-then-rename window, but cannot
                 # prevent a non-cooperating rename after this comparison.
@@ -71,7 +85,8 @@ class MemoryStore:
         size = os.fstat(fd).st_size
         if size:
             os.lseek(fd, -1, os.SEEK_END)
-            if os.read(fd, 1) != b"\n":
+            if os.read(fd, 1) != b"
+":
                 raise MemoryIntegrityError("unterminated tail: append refused")
         data = line.encode("utf-8")
         if os.write(fd, data) != len(data):
