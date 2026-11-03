@@ -1,0 +1,60 @@
+"""Cross-process regression tests for cooperative CAOS JSONL locking.
+
+Run: python -m unittest tests/test_caos_multiprocess_locking.py
+No persistent user files are touched.
+"""
+import multiprocessing as mp
+import os
+import tempfile
+import unittest
+from pathlib import Path
+
+from caos_memory_store import MemoryStore
+
+
+def _writer(path, start, count, gate, output):
+    try:
+        store = MemoryStore(path, secret=b"x" * 32, key_id="test-key")
+        if not gate.wait(10):
+            raise TimeoutError("start gate timed out")
+        for i in range(start, start + count):
+            store.append(str(i), "value")
+        output.put(None)
+    except BaseException as exc:
+        output.put(repr(exc))
+
+
+class MultiprocessLockingTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == "posix", "POSIX locking regression")
+    def test_independent_process_writers(self):
+        ctx = mp.get_context("spawn")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp) / "memory.jsonl")
+            gate = ctx.Event()
+            output = ctx.Queue()
+            workers = [
+                ctx.Process(target=_writer, args=(path, i * 30, 30, gate, output))
+                for i in range(4)
+            ]
+            for worker in workers:
+                worker.start()
+            try:
+                gate.set()
+                for worker in workers:
+                    worker.join(30)
+                for worker in workers:
+                    self.assertFalse(worker.is_alive(), "writer timed out")
+                    self.assertEqual(worker.exitcode, 0)
+                self.assertEqual([output.get(timeout=3) for _ in workers], [None] * 4)
+                records = MemoryStore(path, secret=b"x" * 32, key_id="test-key").read_all()
+                self.assertEqual(len(records), 120)
+                self.assertEqual({record["id"] for record in records}, {str(i) for i in range(120)})
+            finally:
+                for worker in workers:
+                    if worker.is_alive():
+                        worker.terminate()
+                        worker.join(5)
+
+
+if __name__ == "__main__":
+    unittest.main()
