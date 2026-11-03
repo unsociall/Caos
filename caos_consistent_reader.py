@@ -32,7 +32,7 @@ def read_consistent(store: MemoryStore, *, keys: Mapping[str, bytes] | None = No
     """Read a stable snapshot while cooperating writers are blocked.
 
     A pre-existing file is required; missing files represent empty memory.
-    No files or directories are created by this function.
+    A sidecar lock may be created when the memory file exists.
     """
     path = Path(store.path)
     # Preserve empty-memory semantics without creating directories or locks.
