@@ -71,25 +71,10 @@ class MemoryStore:
         os.fsync(fd)
 
     def read_all(self, *, keys: Mapping[str, bytes] | None = None) -> list[dict]:
-        if not self.path.exists():
-            return []
-        keyring = keys if keys is not None else {self.key_id: self.secret}
-        result = []
-        with self.path.open("rb") as stream:
-            for number, raw_line in enumerate(stream, 1):
-                # A JSON object without its terminating newline may be a
-                # partially persisted append. Never treat it as committed.
-                if not raw_line.endswith(b"\n"):
-                    raise MemoryIntegrityError(f"unterminated record at line {number}")
-                try:
-                    line = raw_line.decode("utf-8")
-                except UnicodeDecodeError as exc:
-                    raise MemoryIntegrityError(f"invalid UTF-8 at line {number}") from exc
-                try:
-                    record = json.loads(line)
-                    if not isinstance(record, dict) or not verify(record) or not verify_authenticated(record, keys=keyring):
-                        raise ValueError("integrity verification failed")
-                except (ValueError, TypeError, UnicodeError) as exc:
-                    raise MemoryIntegrityError(f"invalid record at line {number}") from exc
-                result.append(record)
-        return result
+        """Return a consistent authenticated snapshot using the locked reader.
+
+        Import locally to avoid a module import cycle. The reader and writer
+        cooperate on the same descriptor lock; legacy records are not changed.
+        """
+        from caos_consistent_reader import read_consistent
+        return read_consistent(self, keys=keys)
