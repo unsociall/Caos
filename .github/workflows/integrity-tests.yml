@@ -5,15 +5,19 @@ on:
     paths:
       - 'caos_integrity.py'
       - 'caos_authenticated_integrity.py'
+      - 'caos_memory_store.py'
       - 'tests/test_caos_integrity.py'
       - 'tests/test_caos_authenticated_integrity.py'
+      - 'tests/test_caos_memory_store.py'
       - '.github/workflows/integrity-tests.yml'
   pull_request:
     paths:
       - 'caos_integrity.py'
       - 'caos_authenticated_integrity.py'
+      - 'caos_memory_store.py'
       - 'tests/test_caos_integrity.py'
       - 'tests/test_caos_authenticated_integrity.py'
+      - 'tests/test_caos_memory_store.py'
       - '.github/workflows/integrity-tests.yml'
   workflow_dispatch:
 
@@ -34,4 +38,4 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Run all memory integrity unit tests
-        run: python -m unittest discover -s tests -p 'test_caos*integrity.py' -v
+        run: python -m unittest discover -s tests -p 'test_caos*.py' -v
