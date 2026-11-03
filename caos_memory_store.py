@@ -63,7 +63,7 @@ class MemoryStore:
         size = os.fstat(fd).st_size
         if size:
             os.lseek(fd, -1, os.SEEK_END)
-            if os.read(fd, 1) != b"\\n":
+            if os.read(fd, 1) != b"\n":
                 raise MemoryIntegrityError("unterminated tail: append refused")
         data = line.encode("utf-8")
         if os.write(fd, data) != len(data):
