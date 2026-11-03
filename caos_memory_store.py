@@ -48,12 +48,11 @@ class MemoryStore:
         record = authenticate(seal({"id": identifier, "content": content,
                                     "schema_version": 1}),
                               secret=self.secret, key_id=self.key_id)
-        line = json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "
-"
+        line = json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
         # Exclusive creation avoids silently replacing existing data.
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        # Stable sidecar inode coordinates cooperating writers even when the
-        # JSONL path is replaced. Never remove the sidecar during normal use.
+        # Sidecar lock has a stable inode across JSONL path replacement.
+        # Do not unlink it while the store is active.
         lock_path = self.path.with_name(self.path.name + ".lock")
         lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
         try:
@@ -85,8 +84,7 @@ class MemoryStore:
         size = os.fstat(fd).st_size
         if size:
             os.lseek(fd, -1, os.SEEK_END)
-            if os.read(fd, 1) != b"
-":
+            if os.read(fd, 1) != b"\n":
                 raise MemoryIntegrityError("unterminated tail: append refused")
         data = line.encode("utf-8")
         if os.write(fd, data) != len(data):
