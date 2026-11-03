@@ -30,8 +30,15 @@ class MemoryStore:
         line = json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
         # Exclusive creation avoids silently replacing existing data.
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        fd = os.open(self.path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+        fd = os.open(self.path, os.O_RDWR | os.O_APPEND | os.O_CREAT, 0o600)
         try:
+            # Refuse to append behind an interrupted record. A complete
+            # append must end with LF; never silently merge two JSON objects.
+            size = os.fstat(fd).st_size
+            if size:
+                os.lseek(fd, -1, os.SEEK_END)
+                if os.read(fd, 1) != b"\n":
+                    raise MemoryIntegrityError("unterminated tail: append refused")
             data = line.encode("utf-8")
             # Single write; short writes are treated as failure, not retried.
             if os.write(fd, data) != len(data):
