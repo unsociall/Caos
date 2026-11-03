@@ -54,6 +54,16 @@ class MemoryStore:
         fd = os.open(self.path, os.O_RDWR | os.O_APPEND | os.O_CREAT, 0o600)
         try:
             with _exclusive_lock(fd):
+                # Refuse writes to an inode detached from the configured path.
+                # This closes the common open-then-rename window, but cannot
+                # prevent a non-cooperating rename after this comparison.
+                try:
+                    opened = os.fstat(fd)
+                    current = os.stat(self.path)
+                except FileNotFoundError as exc:
+                    raise MemoryIntegrityError("memory path replaced during append") from exc
+                if (opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino):
+                    raise MemoryIntegrityError("memory path replaced during append")
                 self._append_locked(fd, line)
         finally:
             os.close(fd)
