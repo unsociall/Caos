@@ -48,6 +48,19 @@ class MemoryStoreTests(unittest.TestCase):
         with self.assertRaisesRegex(MemoryIntegrityError, "unterminated record"):
             self.store.read_all()
 
+    def test_append_rejects_unterminated_tail_without_modifying_file(self):
+        self.store.append("a", "first")
+        self.path.write_bytes(self.path.read_bytes().rstrip(b"\\n"))
+        before = self.path.read_bytes()
+        with self.assertRaisesRegex(MemoryIntegrityError, "unterminated tail"):
+            self.store.append("b", "second")
+        self.assertEqual(self.path.read_bytes(), before)
+
+    def test_append_accepts_existing_complete_tail(self):
+        self.store.append("a", "first")
+        self.store.append("b", "second")
+        self.assertEqual(len(self.store.read_all()), 2)
+
     def test_invalid_utf8_is_rejected(self):
         self.path.write_bytes(bytes([0xff, 0x0a]))
         with self.assertRaisesRegex(MemoryIntegrityError, "invalid UTF-8"):
