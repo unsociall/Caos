@@ -45,8 +45,16 @@ class MemoryStore:
             return []
         keyring = keys if keys is not None else {self.key_id: self.secret}
         result = []
-        with self.path.open("r", encoding="utf-8") as stream:
-            for number, line in enumerate(stream, 1):
+        with self.path.open("rb") as stream:
+            for number, raw_line in enumerate(stream, 1):
+                # A JSON object without its terminating newline may be a
+                # partially persisted append. Never treat it as committed.
+                if not raw_line.endswith(b"\n"):
+                    raise MemoryIntegrityError(f"unterminated record at line {number}")
+                try:
+                    line = raw_line.decode("utf-8")
+                except UnicodeDecodeError as exc:
+                    raise MemoryIntegrityError(f"invalid UTF-8 at line {number}") from exc
                 try:
                     record = json.loads(line)
                     if not isinstance(record, dict) or not verify(record) or not verify_authenticated(record, keys=keyring):
