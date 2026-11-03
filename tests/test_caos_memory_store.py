@@ -50,7 +50,7 @@ class MemoryStoreTests(unittest.TestCase):
 
     def test_append_rejects_unterminated_tail_without_modifying_file(self):
         self.store.append("a", "first")
-        self.path.write_bytes(self.path.read_bytes().rstrip(b"\\n"))
+        self.path.write_bytes(self.path.read_bytes().rstrip(b"\n"))
         before = self.path.read_bytes()
         with self.assertRaisesRegex(MemoryIntegrityError, "unterminated tail"):
             self.store.append("b", "second")
