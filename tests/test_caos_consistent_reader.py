@@ -1,4 +1,5 @@
 import concurrent.futures
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -40,6 +41,28 @@ class ConsistentReaderTests(unittest.TestCase):
             stream.write(b'{"partial":')
         with self.assertRaises(MemoryIntegrityError):
             self.store.read_all()
+
+    @unittest.skipUnless(os.name == "posix", "POSIX advisory locks only")
+    def test_read_only_snapshot(self):
+        self.store.append("one", "readable")
+        original = self.path.stat().st_mode
+        try:
+            self.path.chmod(0o400)
+            self.assertEqual(read_consistent(self.store)[0]["content"], "readable")
+        finally:
+            self.path.chmod(original)
+
+    @unittest.skipUnless(os.name == "posix", "POSIX shared locks only")
+    def test_shared_lock_allows_second_reader(self):
+        import fcntl
+        self.store.append("one", "shared")
+        fd = os.open(self.path, os.O_RDONLY)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_SH)
+            self.assertEqual(len(read_consistent(self.store)), 1)
+        finally:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+            os.close(fd)
 
     def test_concurrent_readers_and_writer(self):
         def write(i):
