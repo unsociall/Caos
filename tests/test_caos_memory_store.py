@@ -1,4 +1,5 @@
 import json
+import concurrent.futures
 import tempfile
 import unittest
 from pathlib import Path
@@ -71,6 +72,16 @@ class MemoryStoreTests(unittest.TestCase):
         before = self.path.read_bytes()
         self.store.append("b", "second")
         self.assertTrue(self.path.read_bytes().startswith(before))
+
+    def test_concurrent_writers_preserve_all_records(self):
+        def write_one(i):
+            MemoryStore(self.path, secret=self.secret, key_id="test-key").append(str(i), f"value-{i}")
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            list(pool.map(write_one, range(40)))
+        records = self.store.read_all()
+        self.assertEqual(len(records), 40)
+        self.assertEqual({r["id"] for r in records}, {str(i) for i in range(40)})
 
     def test_invalid_key_rejected(self):
         with self.assertRaises(ValueError):
