@@ -102,7 +102,7 @@ class MultiprocessLockingTests(unittest.TestCase):
                     process.join(10)
                     self.assertEqual(process.exitcode, 0)
                 self.assertEqual(results.count(None), 2)
-                samples = [value for kind, value in results if kind == "reader"]
+                samples = [item[1] for item in results if isinstance(item, tuple) and item[0] == "reader"]
                 self.assertEqual(len(samples), 2)
                 for sample in samples:
                     self.assertEqual(len(sample), 35)
