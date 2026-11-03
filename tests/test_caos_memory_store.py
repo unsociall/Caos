@@ -42,6 +42,17 @@ class MemoryStoreTests(unittest.TestCase):
         with self.assertRaises(MemoryIntegrityError):
             self.store.read_all()
 
+    def test_complete_json_without_newline_is_not_committed(self):
+        self.store.append("a", "complete")
+        self.path.write_bytes(self.path.read_bytes().rstrip(b"\n"))
+        with self.assertRaisesRegex(MemoryIntegrityError, "unterminated record"):
+            self.store.read_all()
+
+    def test_invalid_utf8_is_rejected(self):
+        self.path.write_bytes(b"\\xff\\n")
+        with self.assertRaisesRegex(MemoryIntegrityError, "invalid UTF-8"):
+            self.store.read_all()
+
     def test_existing_file_not_overwritten(self):
         self.store.append("a", "first")
         before = self.path.read_bytes()
