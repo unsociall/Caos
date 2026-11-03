@@ -6,10 +6,26 @@ MemoryStore.append(), which takes the same advisory exclusive file lock.
 from __future__ import annotations
 
 import os
+import contextlib
 from pathlib import Path
 from typing import Mapping
 
 from caos_memory_store import MemoryStore, _exclusive_lock
+
+
+@contextlib.contextmanager
+def _reader_lock(fd: int):
+    """Shared POSIX lock; Windows retains the existing exclusive lock."""
+    if os.name == "nt":
+        with _exclusive_lock(fd):
+            yield
+    else:
+        import fcntl
+        fcntl.flock(fd, fcntl.LOCK_SH)
+        try:
+            yield
+        finally:
+            fcntl.flock(fd, fcntl.LOCK_UN)
 
 
 def read_consistent(store: MemoryStore, *, keys: Mapping[str, bytes] | None = None) -> list[dict]:
@@ -20,7 +36,7 @@ def read_consistent(store: MemoryStore, *, keys: Mapping[str, bytes] | None = No
     """
     path = Path(store.path)
     try:
-        fd = os.open(path, os.O_RDWR)
+        fd = os.open(path, os.O_RDWR if os.name == "nt" else os.O_RDONLY)
     except FileNotFoundError:
         return []
     try:
