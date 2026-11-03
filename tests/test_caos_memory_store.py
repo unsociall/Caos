@@ -49,7 +49,7 @@ class MemoryStoreTests(unittest.TestCase):
             self.store.read_all()
 
     def test_invalid_utf8_is_rejected(self):
-        self.path.write_bytes(b"\\xff\\n")
+        self.path.write_bytes(bytes([0xff, 0x0a]))
         with self.assertRaisesRegex(MemoryIntegrityError, "invalid UTF-8"):
             self.store.read_all()
 
