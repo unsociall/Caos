@@ -40,7 +40,7 @@ def read_consistent(store: MemoryStore, *, keys: Mapping[str, bytes] | None = No
     except FileNotFoundError:
         return []
     try:
-        with _exclusive_lock(fd):
+        with _reader_lock(fd):
             # Read via the *locked descriptor* rather than reopening the path:
             # replacement/rename cannot redirect us to an unlocked inode.
             with os.fdopen(os.dup(fd), "rb") as stream:
