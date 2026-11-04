@@ -19,9 +19,6 @@ def diagnose_authenticated(store: MemoryStore, *, keys: Mapping[str, bytes] | No
     This is not a defense against non-cooperating filesystem mutations.
     """
     path = Path(store.path)
-    if not path.exists():
-        return {"status": "missing", "valid_prefix_bytes": 0,
-                "valid_records": 0, "error_offset": None}
     lock_path = path.with_name(path.name + ".lock")
     lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
     try:
