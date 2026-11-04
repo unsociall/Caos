@@ -10,10 +10,13 @@ from caos_memory_store import MemoryStore, _exclusive_lock
 from caos_authenticated_diagnostic import diagnose_authenticated
 
 
-def _diagnose_worker(path, started, results):
+def _diagnose_worker(path, started, finished, results):
     store = MemoryStore(path, secret=b"test-secret", key_id="test")
     started.set()
-    results.put(diagnose_authenticated(store))
+    try:
+        results.put(diagnose_authenticated(store))
+    finally:
+        finished.set()
 
 
 class ConcurrentCreationTests(unittest.TestCase):
@@ -28,16 +31,17 @@ class ConcurrentCreationTests(unittest.TestCase):
             lock_fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
             ctx = mp.get_context("spawn")
             started = ctx.Event()
+            finished = ctx.Event()
             results = ctx.Queue()
             worker = None
             try:
                 with _exclusive_lock(lock_fd):
-                    worker = ctx.Process(target=_diagnose_worker, args=(str(path), started, results))
+                    worker = ctx.Process(target=_diagnose_worker, args=(str(path), started, finished, results))
                     worker.start()
                     self.assertTrue(started.wait(10), "worker did not start")
                     # Allow the child to reach the lock; it must not finish yet.
                     time.sleep(0.3)
-                    self.assertTrue(results.empty(), "diagnostic returned before lock release")
+                    self.assertFalse(finished.is_set(), "diagnostic returned before lock release")
                     with path.open("xb") as target:
                         target.write(fixture_bytes)
                         target.flush()
@@ -45,6 +49,7 @@ class ConcurrentCreationTests(unittest.TestCase):
                 worker.join(10)
                 self.assertFalse(worker.is_alive(), "diagnostic hung after lock release")
                 self.assertEqual(worker.exitcode, 0)
+                self.assertTrue(finished.is_set(), "worker did not signal completion")
                 outcome = results.get(timeout=3)
                 self.assertEqual(outcome["status"], "ok")
                 self.assertEqual(outcome["valid_records"], 1)
