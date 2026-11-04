@@ -43,7 +43,8 @@ class AuthenticatedDiagnosticTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             store = MemoryStore(Path(d) / "memory.jsonl", secret=b"test-secret", key_id="test")
             self.assertEqual(diagnose_authenticated(store)["status"], "missing")
-            self.assertEqual(list(Path(d).iterdir()), [])
+            self.assertFalse(store.path.exists())
+            self.assertTrue(store.path.with_name(store.path.name + ".lock").exists())
 
 
 if __name__ == "__main__":
