@@ -35,6 +35,7 @@ def diagnose_authenticated(store: MemoryStore, *, keys: Mapping[str, bytes] | No
                 with _reader_lock(fd):
                     with os.fdopen(os.dup(fd), "rb") as stream:
                         stream.seek(0)
+                        opened_stat = os.fstat(fd)
                         valid_end = 0
                         count = 0
                         ring = keys if keys is not None else {store.key_id: store.secret}
@@ -42,6 +43,18 @@ def diagnose_authenticated(store: MemoryStore, *, keys: Mapping[str, bytes] | No
                             start = stream.tell()
                             line = stream.readline()
                             if not line:
+                                # Detect non-cooperating replacement during this scan.
+                                # Advisory locks cannot prevent it; reject a stale result.
+                                try:
+                                    current_stat = os.stat(path)
+                                except FileNotFoundError:
+                                    current_stat = None
+                                if (current_stat is None or
+                                        (opened_stat.st_dev, opened_stat.st_ino) !=
+                                        (current_stat.st_dev, current_stat.st_ino)):
+                                    return {"status": "path_replaced",
+                                            "valid_prefix_bytes": valid_end,
+                                            "valid_records": count, "error_offset": None}
                                 return {"status": "ok", "valid_prefix_bytes": valid_end,
                                         "valid_records": count, "error_offset": None}
                             if not line.endswith(b"\n"):
