@@ -36,6 +36,8 @@ def diagnose_authenticated(store: MemoryStore, *, keys: Mapping[str, bytes] | No
                     with os.fdopen(os.dup(fd), "rb") as stream:
                         stream.seek(0)
                         opened_stat = os.fstat(fd)
+                        initial_signature = (opened_stat.st_size, opened_stat.st_mtime_ns,
+                                             opened_stat.st_ctime_ns)
                         valid_end = 0
                         count = 0
                         ring = keys if keys is not None else {store.key_id: store.secret}
@@ -53,6 +55,13 @@ def diagnose_authenticated(store: MemoryStore, *, keys: Mapping[str, bytes] | No
                                         (opened_stat.st_dev, opened_stat.st_ino) !=
                                         (current_stat.st_dev, current_stat.st_ino)):
                                     return {"status": "path_replaced",
+                                            "valid_prefix_bytes": valid_end,
+                                            "valid_records": count, "error_offset": None}
+                                end_stat = os.fstat(fd)
+                                end_signature = (end_stat.st_size, end_stat.st_mtime_ns,
+                                                 end_stat.st_ctime_ns)
+                                if end_signature != initial_signature:
+                                    return {"status": "file_modified",
                                             "valid_prefix_bytes": valid_end,
                                             "valid_records": count, "error_offset": None}
                                 return {"status": "ok", "valid_prefix_bytes": valid_end,
