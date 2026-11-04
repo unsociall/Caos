@@ -1,0 +1,44 @@
+name: CAOS authenticated memory regression
+
+on:
+  push:
+    paths:
+      - 'caos_authenticated_diagnostic.py'
+      - 'caos_memory_store.py'
+      - 'caos_consistent_reader.py'
+      - 'caos_integrity.py'
+      - 'caos_authenticated_integrity.py'
+      - 'tests/test_caos_diagnostic_*.py'
+      - '.github/workflows/caos-memory-regression.yml'
+  pull_request:
+    paths:
+      - 'caos_authenticated_diagnostic.py'
+      - 'caos_memory_store.py'
+      - 'caos_consistent_reader.py'
+      - 'caos_integrity.py'
+      - 'caos_authenticated_integrity.py'
+      - 'tests/test_caos_diagnostic_*.py'
+      - '.github/workflows/caos-memory-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  memory-regression:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ['3.11', '3.12']
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Compile memory modules
+        run: python -m py_compile caos_authenticated_diagnostic.py caos_memory_store.py caos_consistent_reader.py caos_integrity.py caos_authenticated_integrity.py
+      - name: Run diagnostic race regression
+        run: python -m unittest discover -s tests -p 'test_caos_diagnostic_*.py' -v
