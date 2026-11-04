@@ -78,6 +78,21 @@ def diagnose_authenticated(store: MemoryStore, *, keys: Mapping[str, bytes] | No
                                 except (ValueError, TypeError, UnicodeError, KeyError):
                                     status = "invalid_or_unauthenticated"
                             if status != "ok":
+                                # Recheck the snapshot even on validation failure:
+                                # non-cooperating mutations can make an error stale.
+                                try:
+                                    current_stat = os.stat(path)
+                                except FileNotFoundError:
+                                    current_stat = None
+                                if (current_stat is None or
+                                        (opened_stat.st_dev, opened_stat.st_ino) !=
+                                        (current_stat.st_dev, current_stat.st_ino)):
+                                    status = "path_replaced"
+                                else:
+                                    end_stat = os.fstat(fd)
+                                    if (end_stat.st_size, end_stat.st_mtime_ns,
+                                            end_stat.st_ctime_ns) != initial_signature:
+                                        status = "file_modified"
                                 return {"status": status, "valid_prefix_bytes": valid_end,
                                         "valid_records": count, "error_offset": start}
                             valid_end = stream.tell()
