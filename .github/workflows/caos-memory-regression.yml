@@ -9,6 +9,7 @@ on:
       - 'caos_integrity.py'
       - 'caos_authenticated_integrity.py'
       - 'tests/test_caos_diagnostic_*.py'
+      - 'tests/test_caos_authenticated_diagnostic*.py'
       - '.github/workflows/caos-memory-regression.yml'
   pull_request:
     paths:
@@ -18,6 +19,7 @@ on:
       - 'caos_integrity.py'
       - 'caos_authenticated_integrity.py'
       - 'tests/test_caos_diagnostic_*.py'
+      - 'tests/test_caos_authenticated_diagnostic*.py'
       - '.github/workflows/caos-memory-regression.yml'
   workflow_dispatch:
 
@@ -42,3 +44,5 @@ jobs:
         run: python -m py_compile caos_authenticated_diagnostic.py caos_memory_store.py caos_consistent_reader.py caos_integrity.py caos_authenticated_integrity.py
       - name: Run diagnostic race regression
         run: python -m unittest discover -s tests -p 'test_caos_diagnostic_*.py' -v
+      - name: Run authenticated diagnostic regression
+        run: python -m unittest discover -s tests -p 'test_caos_authenticated_diagnostic*.py' -v
