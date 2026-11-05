@@ -12,7 +12,7 @@ class MemorySnapshotTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.source = Path(self.tmp.name) / "memory.jsonl"
-        self.payload = b'{"record":1}\\n'
+        self.payload = b'{"record":1}\n'
         self.source.write_bytes(self.payload)
         self.store = type("Store", (), {"path": self.source})()
         self.destination = Path(self.tmp.name) / "snapshot.jsonl"
