@@ -36,6 +36,15 @@ def validate_recovery_manifest(store: MemoryStore, manifest: Any) -> dict[str, A
             or manifest.get("automatic_repair_allowed") is not False
             or not isinstance(manifest.get("fingerprint"), dict)):
         return {"status": "invalid_manifest", "matches": False, "automatic_repair_allowed": False}
+    created = manifest.get("created_utc")
+    if not isinstance(created, str):
+        return {"status": "invalid_manifest", "matches": False, "automatic_repair_allowed": False}
+    try:
+        timestamp = datetime.fromisoformat(created)
+    except ValueError:
+        return {"status": "invalid_manifest", "matches": False, "automatic_repair_allowed": False}
+    if timestamp.tzinfo is None or timestamp.utcoffset() is None or timestamp.utcoffset().total_seconds() != 0:
+        return {"status": "invalid_manifest", "matches": False, "automatic_repair_allowed": False}
     return verify_recovery_precondition(store, manifest["fingerprint"])
 
 
