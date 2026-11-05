@@ -18,13 +18,13 @@ def assess_snapshot_recovery(store, expected_source: dict, signed_receipt: dict,
         return {**denied, "reason": "invalid_input"}
     try:
         snapshot = verify_authenticated_snapshot(signed_receipt, key)
-    except (OSError, ValueError, TypeError, KeyError):
+    except Exception:  # Fail closed for unexpected verifier failures; do not catch BaseException.
         return {**denied, "reason": "snapshot_verification_error"}
     if not isinstance(snapshot, dict) or snapshot.get("verified") is not True or snapshot.get("authenticated") is not True:
         return {**denied, "reason": "snapshot_not_verified"}
     try:
         source = verify_recovery_precondition(store, expected_source)
-    except (OSError, ValueError, TypeError, KeyError):
+    except Exception:  # Fail closed for unexpected verifier failures; do not catch BaseException.
         return {**denied, "reason": "source_verification_error"}
     if not isinstance(source, dict) or source.get("matches") is not True:
         return {**denied, "reason": "source_stale"}
