@@ -34,6 +34,19 @@ class RecoveryManifestTests(unittest.TestCase):
         self.assertEqual(result["status"], "stale")
         self.assertFalse(result["matches"])
 
+    def test_invalid_or_non_utc_creation_timestamp_is_rejected(self):
+        manifest = build_recovery_manifest(self.store)
+        original = self.path.read_bytes()
+        for value in (None, 123, "", "not-a-date", "2026-11-05T01:00:00",
+                      "2026-11-05T01:00:00-03:00"):
+            with self.subTest(value=value):
+                result = validate_recovery_manifest(
+                    self.store, {**manifest, "created_utc": value})
+                self.assertEqual(result["status"], "invalid_manifest")
+                self.assertFalse(result["matches"])
+                self.assertFalse(result["automatic_repair_allowed"])
+        self.assertEqual(self.path.read_bytes(), original)
+
     def test_malformed_and_future_schema_fail_closed(self):
         manifest = build_recovery_manifest(self.store)
         for candidate in (None, [], {}, {**manifest, "schema_version": 2},
